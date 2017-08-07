@@ -61,27 +61,27 @@ long HX711::read() {
 		uint8_t data[4];
 	};
 
-	// pulse the clock pin 24 times to read the data
+	// Pulse the clock pin 24 times to read the data
 	data[2] = shiftIn(DOUT, PD_SCK, MSBFIRST);
 	data[1] = shiftIn(DOUT, PD_SCK, MSBFIRST);
 	data[0] = shiftIn(DOUT, PD_SCK, MSBFIRST);
 
 	// Shift values read from B to match the range of A
 	if (!SELECTED_A && SHIFT_B) {
-		// TODO	Shift data according to the gain setting GAIN_A
-		// Shift once regardless
-		// Shift again if GAIN_A == 1
+		value <<= 1;
+		if (HIGAIN_A)
+			value <<= 1;
 	}
 	
 	// Set the channel and the gain factor for the next reading using the clock pin
 	SELECTED_A = SELECT_A;
-	digitalWrite(PD_SCK, HIGH);				// 25 clocks to select channel A with highest gain
+	digitalWrite(PD_SCK, HIGH);				// 25 pulses to select channel A with 128 gain
 	digitalWrite(PD_SCK, LOW);
 	if (!SELECT_A || !HIGAIN_A) {
-		digitalWrite(PD_SCK, HIGH);			// 26 clocks to select channel B
+		digitalWrite(PD_SCK, HIGH);			// 26 pulses to select channel B with 32 gain
 		digitalWrite(PD_SCK, LOW);
 		if (SELECT_A) {
-			digitalWrite(PD_SCK, HIGH);		// 27 clocks to select channel A without highest gain
+			digitalWrite(PD_SCK, HIGH);		// 27 pulses to select channel A with 64 gain
 			digitalWrite(PD_SCK, LOW);	
 		}
 	}
