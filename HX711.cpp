@@ -11,7 +11,7 @@ HX711::HX711() {
 HX711::~HX711() {
 }
 
-void HX711::begin(byte dout, byte pd_sck, byte gain, byte channel_a_gain, bool channel_b_shift) {
+void HX711::begin(byte dout, byte pd_sck, byte channel_a_gain, bool channel_b_shift) {
 	PD_SCK = pd_sck;
 	DOUT = dout;
 	GAIN_A = channel_a_gain;
@@ -21,8 +21,6 @@ void HX711::begin(byte dout, byte pd_sck, byte gain, byte channel_a_gain, bool c
 	pinMode(PD_SCK, OUTPUT);
 	pinMode(DOUT, INPUT);
 	digitalWrite(PD_SCK, LOW);
-
-//	set_gain(gain);
 }
 
 bool HX711::is_ready() {
@@ -43,9 +41,6 @@ void HX711::set_gain(byte gain) {
 			SELECT_A = false;
 			break;
 	}
-
-//	digitalWrite(PD_SCK, LOW);
-// 	read();
 }
 
 void HX711::set_channel(bool channel_a) {
@@ -59,9 +54,11 @@ long HX711::read() {
 		yield();
 	}
 
-	unsigned long value = 0;
-	uint8_t data[3] = { 0 };
-	uint8_t filler = 0x00;
+	union
+	{
+		unsigned long value = 0;
+		uint8_t data[4];
+	};
 
 	// pulse the clock pin 24 times to read the data
 	data[2] = shiftIn(DOUT, PD_SCK, MSBFIRST);
@@ -87,17 +84,10 @@ long HX711::read() {
 
 	// Replicate the most significant bit to pad out a 32-bit signed integer
 	if (data[2] & 0x80) {
-		filler = 0xFF;
+		data[3] = 0xFF;
 	} else {
-		filler = 0x00;
+		data[3] = 0x00;
 	}
-
-	// Construct a 32-bit signed integer
-	value = ( static_cast<unsigned long>(filler) << 24
-			| static_cast<unsigned long>(data[2]) << 16
-			| static_cast<unsigned long>(data[1]) << 8
-			| static_cast<unsigned long>(data[0]) );
-	// TODO Should be able to do this declaring a reinterpret_cast or union for data[4] variable and setting the MS byte instead of filler, then just return that.
 
 	return static_cast<long>(value);
 }
@@ -132,7 +122,7 @@ void HX711::tare(byte times) {
 	if (SELECT_A != SELECTED_A) 
 		read();
 	long offset = read_average(times);
-	set_offset(sum, SELECTED_A);
+	set_offset(offset, SELECTED_A);
 }
 
 void HX711::set_scale(float scale, bool channel_a) {
