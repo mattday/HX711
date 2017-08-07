@@ -12,7 +12,7 @@ class HX711
 	private:
 		byte PD_SCK;	// Power Down and Serial Clock Input Pin
 		byte DOUT;		// Serial Data Output Pin
-		byte GAIN_A;	// amplification factor for channel A
+		bool HIGAIN_A;	// maximum amplification factor (128) for channel A
 		bool SHIFT_B;	// shift readings from channel B to match channel A scale
 		bool SELECT_A;		// channel A will be selected (for next read)
 		bool SELECTED_A;	// channel A was selected
@@ -25,14 +25,14 @@ class HX711
 		// define clock and data pin, gain factor and whether channel B readings will be shifted to match channel A.
 		// Channel A can have gain of 128 or 64 (channel B is fixed at 32). Initially channel A is selected.
 		
-		HX711(byte dout, byte pd_sck, byte channel_a_gain = 128, bool channel_b_shift = true);
+		HX711(byte dout, byte pd_sck, bool channel_a_hi_gain = true, bool channel_b_shift = true);
 
 		HX711();
 
 		virtual ~HX711();
 
 		// Allows to set the pins and gain later than in the constructor
-		void begin(byte dout, byte pd_sck, byte channel_a_gain = 128, bool channel_b_shift = true);
+		void begin(byte dout, byte pd_sck, bool channel_a_hi_gain = true, bool channel_b_shift = true);
 
 		// check if HX711 is ready
 		// from the datasheet: When output data is not ready for retrieval, digital output pin DOUT is high. Serial clock

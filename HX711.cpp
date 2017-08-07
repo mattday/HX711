@@ -1,8 +1,8 @@
 #include <Arduino.h>
 #include <HX711.h>
 
-HX711::HX711(byte dout, byte pd_sck, byte channel_a_gain, bool channel_b_shift) {
-	begin(dout, pd_sck, channel_a_gain, channel_b_shift);
+HX711::HX711(byte dout, byte pd_sck, bool channel_a_hi_gain, bool channel_b_shift) {
+	begin(dout, pd_sck, channel_a_hi_gain, channel_b_shift);
 }
 
 HX711::HX711() {
@@ -11,10 +11,10 @@ HX711::HX711() {
 HX711::~HX711() {
 }
 
-void HX711::begin(byte dout, byte pd_sck, byte channel_a_gain, bool channel_b_shift) {
+void HX711::begin(byte dout, byte pd_sck, bool channel_a_hi_gain, bool channel_b_shift) {
 	PD_SCK = pd_sck;
 	DOUT = dout;
-	GAIN_A = channel_a_gain;
+	HIGAIN_A = channel_a_hi_gain;
 	SHIFT_B = channel_b_shift;
 	SELECT_A = true;
 	SELECTED_A = true;
@@ -30,11 +30,13 @@ bool HX711::is_ready() {
 void HX711::set_gain(byte gain) {
 	switch (gain) {
 		case 128:		// channel A, gain factor 128
-			GAIN_A = 1;
+			//GAIN_A = 1;
+			HIGAIN_A = 1;
 			SELECT_A = true;
 			break;
 		case 64:		// channel A, gain factor 64
-			GAIN_A = 3;
+			//GAIN_A = 3;
+			HIGAIN_A = 0;
 			SELECT_A = true;
 			break;
 		case 32:		// channel B, gain factor 32
@@ -54,8 +56,7 @@ long HX711::read() {
 		yield();
 	}
 
-	union
-	{
+	union {
 		unsigned long value = 0;
 		uint8_t data[4];
 	};
@@ -66,22 +67,25 @@ long HX711::read() {
 	data[0] = shiftIn(DOUT, PD_SCK, MSBFIRST);
 
 	// Shift values read from B to match the range of A
-	if (!SELECTED_A && SHIFT_B)
-	{
+	if (!SELECTED_A && SHIFT_B) {
 		// TODO	Shift data according to the gain setting GAIN_A
 		// Shift once regardless
 		// Shift again if GAIN_A == 1
 	}
 	
-	// set the channel and the gain factor for the next reading using the clock pin
+	// Set the channel and the gain factor for the next reading using the clock pin
 	SELECTED_A = SELECT_A;
-	byte GAIN = (SELECT_A) ? GAIN_A : 2;
-	for (byte i = 0; i < GAIN; i++) {
-		digitalWrite(PD_SCK, HIGH);
+	digitalWrite(PD_SCK, HIGH);				// 25 clocks to select channel A with highest gain
+	digitalWrite(PD_SCK, LOW);
+	if (!SELECT_A || !HIGAIN_A) {
+		digitalWrite(PD_SCK, HIGH);			// 26 clocks to select channel B
 		digitalWrite(PD_SCK, LOW);
-		// TODO This can be optimised - no need for loop and associated overhead.
+		if (SELECT_A) {
+			digitalWrite(PD_SCK, HIGH);		// 27 clocks to select channel A without highest gain
+			digitalWrite(PD_SCK, LOW);	
+		}
 	}
-
+	
 	// Replicate the most significant bit to pad out a 32-bit signed integer
 	if (data[2] & 0x80) {
 		data[3] = 0xFF;
