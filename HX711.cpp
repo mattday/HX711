@@ -1,8 +1,8 @@
 #include <Arduino.h>
 #include <HX711.h>
 
-HX711::HX711(byte dout, byte pd_sck, byte gain) {
-	begin(dout, pd_sck, gain);
+HX711::HX711(byte dout, byte pd_sck, byte channel_a_gain, bool channel_b_shift) {
+	begin(dout, pd_sck, channel_a_gain, channel_b_shift);
 }
 
 HX711::HX711() {
@@ -11,14 +11,18 @@ HX711::HX711() {
 HX711::~HX711() {
 }
 
-void HX711::begin(byte dout, byte pd_sck, byte gain) {
+void HX711::begin(byte dout, byte pd_sck, byte gain, byte channel_a_gain, bool channel_b_shift) {
 	PD_SCK = pd_sck;
 	DOUT = dout;
-
+	GAIN_A = channel_a_gain;
+	SHIFT_B = channel_b_shift;
+	SELECT_A = true;
+	SELECTED_A = true;
 	pinMode(PD_SCK, OUTPUT);
 	pinMode(DOUT, INPUT);
+	digitalWrite(PD_SCK, LOW);
 
-	set_gain(gain);
+//	set_gain(gain);
 }
 
 bool HX711::is_ready() {
@@ -28,18 +32,24 @@ bool HX711::is_ready() {
 void HX711::set_gain(byte gain) {
 	switch (gain) {
 		case 128:		// channel A, gain factor 128
-			GAIN = 1;
+			GAIN_A = 1;
+			SELECT_A = true;
 			break;
 		case 64:		// channel A, gain factor 64
-			GAIN = 3;
+			GAIN_A = 3;
+			SELECT_A = true;
 			break;
 		case 32:		// channel B, gain factor 32
-			GAIN = 2;
+			SELECT_A = false;
 			break;
 	}
 
-	digitalWrite(PD_SCK, LOW);
+//	digitalWrite(PD_SCK, LOW);
 // 	read();
+}
+
+void HX711::set_channel(bool channel_a) {
+	SELECT_A = channel_a;
 }
 
 long HX711::read() {
@@ -58,10 +68,21 @@ long HX711::read() {
 	data[1] = shiftIn(DOUT, PD_SCK, MSBFIRST);
 	data[0] = shiftIn(DOUT, PD_SCK, MSBFIRST);
 
+	// Shift values read from B to match the range of A
+	if (!SELECTED_A && SHIFT_B)
+	{
+		// TODO	Shift data according to the gain setting GAIN_A
+		// Shift once regardless
+		// Shift again if GAIN_A == 1
+	}
+	
 	// set the channel and the gain factor for the next reading using the clock pin
-	for (unsigned int i = 0; i < GAIN; i++) {
+	SELECTED_A = SELECT_A;
+	byte GAIN = (SELECT_A) ? GAIN_A : 2;
+	for (byte i = 0; i < GAIN; i++) {
 		digitalWrite(PD_SCK, HIGH);
 		digitalWrite(PD_SCK, LOW);
+		// TODO This can be optimised - no need for loop and associated overhead.
 	}
 
 	// Replicate the most significant bit to pad out a 32-bit signed integer
@@ -76,12 +97,16 @@ long HX711::read() {
 			| static_cast<unsigned long>(data[2]) << 16
 			| static_cast<unsigned long>(data[1]) << 8
 			| static_cast<unsigned long>(data[0]) );
+	// TODO Should be able to do this declaring a reinterpret_cast or union for data[4] variable and setting the MS byte instead of filler, then just return that.
 
 	return static_cast<long>(value);
 }
 
 long HX711::read_average(byte times) {
 	long sum = 0;
+	// Ensure next value is from the last selected channel
+	if (SELECT_A != SELECTED_A) 
+		read();
 	for (byte i = 0; i < times; i++) {
 		sum += read();
 		yield();
@@ -89,33 +114,53 @@ long HX711::read_average(byte times) {
 	return sum / times;
 }
 
-double HX711::get_value(byte times) {
-	return read_average(times) - OFFSET;
+long HX711::get_value(byte times) {
+	if (SELECTED_A)
+		return read_average(times) - OFFSET_A;
+	else
+		return read_average(times) - OFFSET_B;
 }
 
 float HX711::get_units(byte times) {
-	return get_value(times) / SCALE;
+	if (SELECTED_A)
+		return float(get_value(times)) / SCALE_A;
+	else
+		return float(get_value(times)) / SCALE_B;
 }
 
 void HX711::tare(byte times) {
-	double sum = read_average(times);
-	set_offset(sum);
+	if (SELECT_A != SELECTED_A) 
+		read();
+	long offset = read_average(times);
+	set_offset(sum, SELECTED_A);
 }
 
-void HX711::set_scale(float scale) {
-	SCALE = scale;
+void HX711::set_scale(float scale, bool channel_a) {
+	if (channel_a)
+		SCALE_A = scale;
+	else
+		SCALE_B = scale;
 }
 
-float HX711::get_scale() {
-	return SCALE;
+float HX711::get_scale(bool channel_a) {
+	if (channel_a)
+		return SCALE_A;
+	else
+		return SCALE_B;
 }
 
-void HX711::set_offset(long offset) {
-	OFFSET = offset;
+void HX711::set_offset(long offset, bool channel_a) {
+	if (channel_a)
+		OFFSET_A = offset;
+	else
+		OFFSET_B = offset;
 }
 
-long HX711::get_offset() {
-	return OFFSET;
+long HX711::get_offset(bool channel_a) {
+	if (channel_a)
+		return OFFSET_A;
+	else
+		return OFFSET_B;
 }
 
 void HX711::power_down() {
