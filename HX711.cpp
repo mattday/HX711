@@ -29,17 +29,15 @@ bool HX711::is_ready() {
 
 void HX711::set_gain(byte gain) {
 	switch (gain) {
-		case 128:		// channel A, gain factor 128
-			//GAIN_A = 1;
+		case 128:		// Channel A, gain factor 128
 			HIGAIN_A = 1;
 			SELECT_A = true;
 			break;
-		case 64:		// channel A, gain factor 64
-			//GAIN_A = 3;
+		case 64:		// Channel A, gain factor 64
 			HIGAIN_A = 0;
 			SELECT_A = true;
 			break;
-		case 32:		// channel B, gain factor 32
+		case 32:		// Channel B, gain factor 32
 			SELECT_A = false;
 			break;
 	}
@@ -50,7 +48,7 @@ void HX711::set_channel(bool channel_a) {
 }
 
 long HX711::read() {
-	// wait for the chip to become ready
+	// Wait for the chip to become ready
 	while (!is_ready()) {
 		// Will do nothing on Arduino but prevent resets of ESP8266 (Watchdog Issue)
 		yield();
