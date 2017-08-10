@@ -7,26 +7,21 @@
 #include "WProgram.h"
 #endif
 
+// TODO: We are initially using external interrupts limiting ourselves to only two pins on 
+// the 328p. However, we can use level change interrupt to allow more pins to be used. 
+// We will need to use a Pin Change library and make a different call to attach the interrupt 
+// after checking the pin does not support external interrupt (digitalPinToInterrupt returns 
+// NOT_AN_INTERRUPT)
 
 // Template parameters define clock and data pin, whether channel A uses highest gain (128)
 // and whether channel B readings will be shifted to match channel A.
 template <byte PD_SCK, byte DOUT, bool HIGAIN_A = true, bool SHIFT_B = true>
 class HX711
 {	
-
-//	private:
-//		bool SELECT_A;		// channel A will be selected (for next read)
-//		bool SELECTED_A;	// channel A was selected
-//		long OFFSET_A = 0;	// used for zero adjustment / tare weight
-//		long OFFSET_B = 0;	// used for zero adjustment / tare weight
-//		float SCALE_A = 1;	// used to return weight in grams, kg, ounces, whatever
-//		float SCALE_B = 1;	// used to return weight in grams, kg, ounces, whatever
-//		ReadCallback CALLBACK_A; // function to call when new value read from channel A
-//		ReadCallback CALLBACK_B; // function to call when new value read from channel B
 		
 	public:
 
-		typedef void (*ReadCallback)(long);
+		typedef void (*ReadCallback)(long value, bool channelA);
 	
 		HX711();
 
@@ -58,12 +53,16 @@ class HX711
 		
 		// Set a handler to process value when it becomes available from channel A
 		// Handler is called by an interrupt, so usual precautions for ISRs apply.
-		void setReadHandlerA(ReadCallback &callback);
+//		void setReadHandlerA(ReadCallback &callback);
 		
 		// Set a handler to process value when it becomes available from channel B;
 		// Setting a handler for channel B will cause values to be read alternately from channel A and channel B.
 		// Handler is called by an interrupt, so usual precautions for ISRs apply.
-		void setReadHandlerB(ReadCallback &callback);
+//		void setReadHandlerB(ReadCallback &callback);
+		
+		// Set a handler to process value when it becomes available
+		// Handler is called by an interrupt, so usual precautions for ISRs apply.
+		void setReadHandler(ReadCallback callback);
 		
 		// Waits for the chip to be ready and returns a reading
 		long read();
@@ -108,17 +107,21 @@ class HX711
 		
 	private:
 		
-		bool _selectChannelA;			// Channel A will be selected (for next read)
-		bool _selectedChannelA;			// Channel A was selected
-		bool _alternateChannels;		// Readings will alternate between channels
-		ReadCallback _callbackChannelA; 	// Function to call when new value read from channel A
-		ReadCallback _callbackChannelB; 	// Function to call when new value read from channel B
+		bool m_selectChannelA;			// Channel A will be selected (for next read)
+		bool m_selectedChannelA;		// Channel A was selected
+		bool m_alternateChannels;		// Readings will alternate between channels
+		ReadCallback m_readCallback; 	// Function to call when new value is available
+		
+		// Retrieve reading from chip without first checking it is ready
+		void retrieveReading(long &value, bool &channelA);
+		
+		// Pointer to instance of the HX711 class for the given pin configuration
+		static HX711 *pInstance;
 		
 		// Interrupt service routine
 		static void InterruptHandler();
 		
-		// Pointer to instance of the HX711 class for the given pin configuration
-		static HX711 *pInstance;
+
 		
 };
 

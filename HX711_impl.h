@@ -1,11 +1,11 @@
-// Implementation of HX711 template class
+// Implementation of HX711 template class. See HX711.h for details of interface.
 
 template <byte PD_SCK, byte DOUT, bool HIGAIN_A, bool SHIFT_B>
 HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B> *HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::pInstance = 0;
 
 template <byte PD_SCK, byte DOUT, bool HIGAIN_A, bool SHIFT_B>
 HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::HX711() :
-	_selectChannelA(true), _selectedChannelA(true), _alternateChannels(false)
+	m_selectChannelA(true), m_selectedChannelA(true), m_alternateChannels(false)
 {
 	HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::pInstance = this;	// For interrupt callback
 }
@@ -13,7 +13,7 @@ HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::HX711() :
 template <byte PD_SCK, byte DOUT, bool HIGAIN_A, bool SHIFT_B>
 void HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::begin(bool alternateChannels)
 {
-	_alternateChannels = alternateChannels;
+	m_alternateChannels = alternateChannels;
 	pinMode(PD_SCK, OUTPUT);
 	pinMode(DOUT, INPUT);
 	digitalWrite(PD_SCK, LOW);
@@ -29,68 +29,25 @@ bool HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::isReady()
 {
 	return digitalRead(DOUT) == LOW;
 }
-/*
-template <byte PD_SCK, byte DOUT, bool HIGAIN_A, bool SHIFT_B>
-void HX711::set_gain(byte gain) {
-	switch (gain) {
-		case 128:		// Channel A, gain factor 128
-			HIGAIN_A = 1;
-			SELECT_A = true;
-			break;
-		case 64:		// Channel A, gain factor 64
-			HIGAIN_A = 0;
-			SELECT_A = true;
-			break;
-		case 32:		// Channel B, gain factor 32
-			SELECT_A = false;
-			break;
-	}
-}
-
-void HX711::set_channel(bool channel_a) {
-	SELECT_A = channel_a;
-}
-
-void HX711::set_read_handler(ReadCallback &callback, bool channel_a) {
-	if (channel_a)
-		CALLBACK_A = callback;
-	else
-		CALLBACK_B = callback;
-}
-*/
-
 
 template <byte PD_SCK, byte DOUT, bool HIGAIN_A, bool SHIFT_B>
-void HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::InterruptHandler()
+static void HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::InterruptHandler()
 {
+	// Check a reading is ready for retrieval
+	if (digitalRead(DOUT) != LOW)
+		return;
 	long value;
 	bool channelA;
-	HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::pInstance->read(value, channelA);
-	if (channelA)
-	{
-		if (HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::pInstance->_callbackChannelA != 0)
-			HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::pInstance->_callbackChannelA(value);
-	}
-	else 
-	{
-		if (HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::pInstance->_callbackChannelB != 0)
-			HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::pInstance->_callbackChannelB(value);
-	}
-}
-		
-template <byte PD_SCK, byte DOUT, bool HIGAIN_A, bool SHIFT_B>
-void HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::setReadHandlerA(ReadCallback &callback) 
-{
-	_callbackChannelA = callback;
-	attachInterrupt(digitalPinToInterrupt(DOUT), HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::InterruptHandler, FALLING);
-// TODO
+	// Retrieve reading and pass it to the callback
+	HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::pInstance->retrieveReading(value, channelA);
+	HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::pInstance->m_readCallback(value, channelA);
 }
 
 template <byte PD_SCK, byte DOUT, bool HIGAIN_A, bool SHIFT_B>
-void HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::setReadHandlerB(ReadCallback &callback)
+void HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::setReadHandler(ReadCallback callback) 
 {
-	_callbackChannelB = callback;
-	// TODO
+	m_readCallback = callback;
+	attachInterrupt(digitalPinToInterrupt(DOUT), HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::InterruptHandler, LOW);
 }
 
 template <byte PD_SCK, byte DOUT, bool HIGAIN_A, bool SHIFT_B>
@@ -110,14 +67,14 @@ void HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::read(long &value, bool &channelA)
 		// Will do nothing on Arduino but prevent resets of ESP8266 (Watchdog Issue)
 		yield();
 	}
-
-	/*
-	union {
-		unsigned long value = 0;
-		uint8_t data[4];
-	};
-	*/
 	
+	// Retrieve value from chip
+	retrieveReading(value, channelA);
+}
+
+template <byte PD_SCK, byte DOUT, bool HIGAIN_A, bool SHIFT_B>
+void HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::retrieveReading(long &value, bool &channelA) 
+{
 	// Initialise reading
 	value = 0;
 	uint8_t *data = reinterpret_cast<uint8_t *>(&value);
@@ -128,37 +85,35 @@ void HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::read(long &value, bool &channelA)
 	data[0] = shiftIn(DOUT, PD_SCK, MSBFIRST);
 
 	// Shift values read from B to match the range of A
-	if (!_selectedChannelA && SHIFT_B) {
+	if (!m_selectedChannelA && SHIFT_B) {
 		value <<= 1;
 		if (HIGAIN_A)
 			value <<= 1;
 	}
 	
 	// Store the channel to which the value applies
-	channelA = _selectedChannelA;
+	channelA = m_selectedChannelA;
 	// Change channels if reads are alternating
-	if (_alternateChannels)
-		_selectChannelA = !_selectedChannelA;
+	if (m_alternateChannels)
+		m_selectChannelA = !m_selectedChannelA;
 	// Set the channel and the gain factor for the next reading using the clock pin
-	_selectedChannelA = _selectChannelA;
-	digitalWrite(PD_SCK, HIGH);				// 25 pulses to select channel A with 128 gain
+	m_selectedChannelA = m_selectChannelA;
+	digitalWrite(PD_SCK, HIGH);				// 25 pulses to select channel A with 128 gain	
 	digitalWrite(PD_SCK, LOW);
-	if (!_selectChannelA || !HIGAIN_A) {
+	if (!m_selectChannelA || !HIGAIN_A) {
 		digitalWrite(PD_SCK, HIGH);			// 26 pulses to select channel B with 32 gain
 		digitalWrite(PD_SCK, LOW);
-		if (_selectChannelA) {
+		if (m_selectChannelA) {
 			digitalWrite(PD_SCK, HIGH);		// 27 pulses to select channel A with 64 gain
 			digitalWrite(PD_SCK, LOW);	
 		}
 	}
-	
 	// Replicate the most significant bit to pad out a 32-bit signed integer
 	if (data[2] & 0x80) {
 		data[3] = 0xFF;
 	} else {
 		data[3] = 0x00;
 	}
-
 }
 
 /*
