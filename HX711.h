@@ -36,29 +36,8 @@ class HX711
 		// input PD_SCK should be low. When DOUT goes to low, it indicates data is ready for retrieval.
 		bool isReady();
 
-		// Set the gain factor; takes effect only after a call to read();
-		// this method is now deprecated and included for backward compatability only;
-		// channel A gain is set either by the constructor or begin method;
-		// channel selection is achieved by the set_channel method.
-//		void set_gain(byte gain = 128);
-
-		// Set the channel from which to read; takes effect only after a call to read();
-		// if argument is true, first channel will be read, if false, second channel.
-//		void set_channel(bool channel_a);
-		
-		// Set a handler to process value when it becomes available.
-		// Setting a handler for channel B will cause values to be read alternately from channel A and channel B.
-		// Handler is called by an interrupt, so usual precautions for ISRs apply.
-//		void set_read_handler(ReadCallback &callback, bool channel_a = true);
-		
-		// Set a handler to process value when it becomes available from channel A
-		// Handler is called by an interrupt, so usual precautions for ISRs apply.
-//		void setReadHandlerA(ReadCallback &callback);
-		
-		// Set a handler to process value when it becomes available from channel B;
-		// Setting a handler for channel B will cause values to be read alternately from channel A and channel B.
-		// Handler is called by an interrupt, so usual precautions for ISRs apply.
-//		void setReadHandlerB(ReadCallback &callback);
+		// Set the channel from which to read after the next value has been read.
+		void setChannelA(bool channelA);
 		
 		// Set a handler to process value when it becomes available
 		// Handler is called by an interrupt, so usual precautions for ISRs apply.

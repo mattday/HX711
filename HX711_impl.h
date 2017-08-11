@@ -116,6 +116,23 @@ void HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::retrieveReading(long &value, bool &
 	}
 }
 
+template <byte PD_SCK, byte DOUT, bool HIGAIN_A, bool SHIFT_B>
+void  HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::setChannelA(bool channelA)
+{
+	m_selectChannelA = channelA;
+}
+
+template <byte PD_SCK, byte DOUT, bool HIGAIN_A, bool SHIFT_B>
+void HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::powerDown() {
+	digitalWrite(PD_SCK, LOW);
+	digitalWrite(PD_SCK, HIGH);
+}
+
+template <byte PD_SCK, byte DOUT, bool HIGAIN_A, bool SHIFT_B>
+void HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::powerUp() {
+	digitalWrite(PD_SCK, LOW);
+}
+
 /*
 template <byte PD_SCK, byte DOUT, bool HIGAIN_A, bool SHIFT_B>
 long HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::readAverage(byte times) 
@@ -183,13 +200,4 @@ long HX711::get_offset(bool channel_a) {
 		return OFFSET_B;
 }
 */
-template <byte PD_SCK, byte DOUT, bool HIGAIN_A, bool SHIFT_B>
-void HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::powerDown() {
-	digitalWrite(PD_SCK, LOW);
-	digitalWrite(PD_SCK, HIGH);
-}
 
-template <byte PD_SCK, byte DOUT, bool HIGAIN_A, bool SHIFT_B>
-void HX711<PD_SCK, DOUT, HIGAIN_A, SHIFT_B>::powerUp() {
-	digitalWrite(PD_SCK, LOW);
-}
