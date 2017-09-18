@@ -1,3 +1,22 @@
+// Library to interface with Avia Semiconductor HX711 24-bit ADC for weigh scales. 
+//
+// Originally forked from https://github.com/bogde/HX711 but no longer compatible.
+//
+// A lot of the changes just suited the particular project I was working on, and I make no apologies for the 
+// resulting library not being more general. Please select whichever library is more appropriate for your 
+// application.
+//
+// Main differences/features are:
+//
+//   a) template-based to allow some build-time optimisations and for better implementation of (b)
+//   b) provides a callback mechanism when a new value has been read from the device. bogde's library 
+// 	    supported only polling the device to see if a value was ready for reading. This is not a useful operating 
+// 		mode in many applications, particulary given that the HX711 conversion rate is relatively slow.
+//   c) no built-in support for any scaling/offet of readings, but this is trivial to implement externally.
+//   d) different approach to channels: less ambiguous which channel a reading is from, readings can automatically
+//      alternate between channels and channel B readings can automatically shift to channel A range.
+//   e) multiple HX711 devices supported.
+
 #ifndef HX711_h
 #define HX711_h
 
@@ -7,18 +26,21 @@
 #include "WProgram.h"
 #endif
 
-// TODO: We are initially using external interrupts limiting ourselves to only two pins on 
+// Note: We are initially using external interrupts limiting ourselves to only two pins on 
 // the 328p. However, we can use level change interrupt to allow more pins to be used. 
 // We will need to use a Pin Change library and make a different call to attach the interrupt 
 // after checking the pin does not support external interrupt (digitalPinToInterrupt returns 
 // NOT_AN_INTERRUPT)
 
+// Note: Alternate reading between channels makes the HX711 very slow. The datasheet specifies
+// settling time of 400ms (for low output rate) or 50ms (for high output rate) when changing gain 
+// or channel. This can mean only approx one reading from each channel per second on a typical board.
+
 // Template parameters define clock and data pin, whether channel A uses highest gain (128)
-// and whether channel B readings will be shifted to match channel A.
+// and whether channel B readings will be shifted to match channel A range.
 template <byte PD_SCK, byte DOUT, bool HIGAIN_A = true, bool SHIFT_B = true>
 class HX711
 {	
-		
 	public:
 
 		typedef void (*ReadCallback)(long value, bool channelA);
@@ -49,35 +71,6 @@ class HX711
 		// Waits for a reading to become available and stores it with associated channel flag
 		void read(long &value, bool &channelA);
 
-		// Returns an average reading; times = how many times to read.
-		// Operates on last selected channel
-//		long readAverage(byte times = 10);
-
-		// Returns (read_average() - OFFSET), that is the current value without the tare weight; times = how many readings to do;
-		// operates on last selected channel
-//		long get_value(byte times = 1);
-
-		// Returns get_value() divided by SCALE, that is the raw value divided by a value obtained via calibration;
-		// times = how many readings to do;
-		// operates on last selected channel
-//		float get_units(byte times = 1);
-
-		// Set the OFFSET value for tare weight; times = how many times to read the tare value;
-		// operates on last selected channel
-//		void tare(byte times = 10);
-
-		// Set the SCALE value; this value is used to convert the raw data to "human readable" data (measure units)
-//		void set_scale(float scale = 1.f, bool channel_a = true);
-
-		// Get the current SCALE
-//		float get_scale(bool channel_a = true);
-
-		// Set OFFSET, the value that's subtracted from the actual reading (tare weight)
-//		void set_offset(long offset = 0, bool channel_a = true);
-
-		// Get the current OFFSET
-//		long get_offset(bool channel_a = true);
-
 		// Puts the chip into power down mode
 		void powerDown();
 
@@ -99,9 +92,7 @@ class HX711
 		
 		// Interrupt service routine
 		static void InterruptHandler();
-		
 
-		
 };
 
 #include "HX711_impl.h"
